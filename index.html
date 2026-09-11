@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Northfield Studio , Site Architecture &amp; Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Design tokens , IKEA-style system (user brief).
+     Noto IKEA is proprietary; Noto Sans is the shipped fallback.
+     Primary blue = fills/backgrounds w/ white text (hero, CTAs, active filters).
+     Accent electric blue = interactive emphasis (links, focus, underlines, heritage marks).
+     Muted text = white at reduced opacity, per two-tone token philosophy. */
+  :root{
+    --primary:#0159a3;
+    --on-primary:#ffffff;
+    --surface:#000000;
+    --surface-raised:#0e0e0e;
+    --text:#ffffff;
+    --text-muted:rgba(255,255,255,.64);
+    --text-faint:rgba(255,255,255,.45);
+    --accent:#0000ee;
+    --border:rgba(255,255,255,.12);
+
+    --font:'Noto Sans','Roboto','Open Sans',system-ui,sans-serif;
+
+    --display-size:36px; --display-weight:700; --display-lh:1.2; --display-ls:-0.96px;
+    --heading-size:25px; --heading-weight:700; --heading-lh:1.2; --heading-ls:-0.54px;
+    --body-size:16px; --body-lh:1.5;
+
+    --sp-4:4px; --sp-16:16px; --sp-20:20px; --sp-24:24px; --sp-36:36px; --sp-120:120px; --sp-140:140px;
+    --r-sm:8px;
+
+    --dur-fast:200ms; --dur-base:500ms; --dur-slow:700ms;
+    --ease:ease-out;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{ color-scheme:dark; }
+  body{
+    background:var(--surface);
+    color:var(--text);
+    font-family:var(--font);
+    font-size:var(--body-size);
+    line-height:var(--body-lh);
+    -webkit-font-smoothing:antialiased;
+  }
+  h1{ font-size:var(--display-size); font-weight:var(--display-weight); line-height:var(--display-lh); letter-spacing:var(--display-ls); }
+  h2{ font-size:var(--heading-size); font-weight:var(--heading-weight); line-height:var(--heading-lh); letter-spacing:var(--heading-ls); }
+  a{ color:var(--accent); text-decoration:none; }
+  a:hover{ text-decoration:underline; }
+  button{ font-family:var(--font); }
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  @media (prefers-reduced-motion: reduce){
+    *{ transition:none !important; }
+  }
+
+  /* ---------- Tabs ---------- */
+  .tabbar{
+    display:flex;
+    gap:0;
+    border-bottom:1px solid var(--border);
+    background:var(--surface);
+    position:sticky; top:0; z-index:50;
+    overflow-x:auto;
+  }
+  .tabbar button{
+    font-size:13px;
+    letter-spacing:.02em;
+    padding:16px 22px;
+    min-height:52px;
+    background:none;
+    border:none;
+    border-bottom:2px solid transparent;
+    color:var(--text-muted);
+    cursor:pointer;
+    white-space:nowrap;
+    transition:color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  }
+  .tabbar button:hover{ color:var(--text); }
+  .tabbar button.active{
+    color:var(--text);
+    border-bottom-color:var(--accent);
+  }
+  .view{ display:none; }
+  .view.active{ display:block; }
+
+  /* ---------- Shared page chrome ---------- */
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:var(--sp-24) 40px;
+    border-bottom:1px solid var(--border);
+  }
+  .nav .logo{ font-size:19px; font-weight:700; letter-spacing:.01em; }
+  .nav .links{ display:flex; gap:34px; font-size:13.5px; }
+  .nav .links a{ color:var(--text-muted); }
+  .nav .links a:hover{ color:var(--text); text-decoration:none; }
+  .nav .links a.current{ color:var(--text); border-bottom:2px solid var(--primary); padding-bottom:3px; }
+
+  .footer{
+    padding:var(--sp-36) 40px 60px;
+    border-top:1px solid var(--border);
+    font-size:13px;
+    color:var(--text-faint);
+    display:flex; justify-content:space-between; align-items:flex-end;
+  }
+
+  /* ================= ARCHITECTURE VIEW ================= */
+  .arch-wrap{ max-width:1200px; margin:0 auto; padding:64px 32px 100px; }
+  .arch-wrap .intro{ max-width:640px; margin-bottom:56px; }
+  .arch-wrap h1{ margin-bottom:14px; }
+  .arch-wrap .intro p{ font-size:15px; line-height:1.6; color:var(--text-muted); }
+
+  .tree{ border-top:1px solid var(--text); }
+  .tier{
+    display:grid;
+    grid-template-columns: 190px 1fr;
+    border-bottom:1px solid var(--border);
+    padding:22px 0;
+    gap:24px;
+  }
+  .tier .num{
+    color:var(--accent);
+    font-size:13px;
+    font-weight:700;
+    letter-spacing:.04em;
+    padding-top:2px;
+  }
+  .tier .label{ font-size:15px; font-weight:700; }
+  .tier .sub{ font-size:13px; color:var(--text-muted); margin-top:3px; font-weight:400; line-height:1.55; }
+  .branches{ margin-top:16px; display:flex; flex-direction:column; gap:10px; }
+  .branch{
+    display:grid;
+    grid-template-columns: 200px 1fr;
+    gap:16px;
+    font-size:13px;
+    padding:14px 16px;
+    background:var(--surface-raised);
+    border:1px solid var(--border);
+    border-radius:var(--r-sm);
+  }
+  .branch .name{ font-weight:700; }
+  .branch .desc{ color:var(--text-muted); line-height:1.5; }
+  .branch.heritage{ border-left:3px solid var(--accent); }
+  .badge-tag{
+    display:inline-block;
+    font-size:10px;
+    font-weight:600;
+    letter-spacing:.05em;
+    padding:2px 8px;
+    border:1px solid var(--accent);
+    border-radius:var(--r-sm);
+    color:var(--text-muted);
+    margin-left:8px;
+    vertical-align:middle;
+  }
+  .footnote{
+    margin-top:40px;
+    padding:20px 24px;
+    background:var(--surface-raised);
+    border:1px solid var(--border);
+    border-radius:var(--r-sm);
+    font-size:13.5px;
+    line-height:1.6;
+    color:var(--text-muted);
+  }
+  .footnote strong{ color:var(--text); font-weight:700; }
+
+  /* ================= HOME VIEW ================= */
+  .home-hero{
+    background:var(--primary);
+    color:var(--on-primary);
+    padding:var(--sp-120) 40px 96px;
+  }
+  .home-hero .inner{ max-width:1200px; margin:0 auto; }
+  .home-hero .eyebrow{
+    font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.1em;
+    color:rgba(255,255,255,.78); margin-bottom:var(--sp-16);
+  }
+  .home-hero h1{ margin-bottom:var(--sp-16); }
+  .home-hero p{ font-size:16px; line-height:1.6; color:rgba(255,255,255,.82); max-width:560px; }
+  .home-hero .home-image{
+    margin-top:var(--sp-36);
+    height:380px;
+    background:linear-gradient(135deg, #0b2a4a, #01407c);
+    border:1px solid rgba(255,255,255,.22);
+    border-radius:var(--r-sm);
+    display:flex; align-items:flex-end; padding:16px;
+  }
+  .home-hero .home-image span{ font-size:12px; color:rgba(255,255,255,.66); }
+
+  .heritage-module{
+    padding:72px 40px;
+    border-bottom:1px solid var(--border);
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:48px;
+    align-items:center;
+  }
+  .heritage-module .inner{ max-width:1200px; margin:0 auto; width:100%; display:contents; }
+  .heritage-module .h-image{
+    height:320px;
+    background:linear-gradient(135deg, #0e0e0e, #1a2530);
+    border:1px solid var(--border);
+    border-radius:var(--r-sm);
+    display:flex; align-items:flex-end; padding:16px;
+  }
+  .heritage-module .h-image span{ font-size:12px; color:var(--text-faint); }
+  .heritage-module .h-copy .eyebrow{
+    font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.1em;
+    color:var(--accent); margin-bottom:14px;
+  }
+  .heritage-module .h-copy h2{ margin-bottom:14px; }
+  .heritage-module .h-copy p{ font-size:15px; line-height:1.6; color:var(--text-muted); margin-bottom:var(--sp-24); max-width:440px; }
+  .heritage-module .h-copy a{
+    font-size:14px; font-weight:700; color:var(--accent);
+  }
+
+  .category-tiles{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:var(--sp-16);
+    padding:var(--sp-36) 40px 60px;
+    border-bottom:1px solid var(--border);
+  }
+  .category-tiles .inner{ max-width:1200px; margin:0 auto; width:100%; display:contents; }
+  .category-tiles .tile{
+    background:var(--surface-raised);
+    border:1px solid var(--border);
+    border-radius:var(--r-sm);
+    padding:var(--sp-24);
+    cursor:pointer;
+    transition:border-color var(--dur-fast) var(--ease);
+  }
+  .category-tiles .tile:hover{ border-color:var(--accent); }
+  .category-tiles .tile .t-image{
+    height:170px;
+    background:linear-gradient(135deg, #0e0e0e, #1a2530);
+    border:1px solid var(--border);
+    border-radius:var(--r-sm);
+    margin-bottom:18px;
+  }
+  .category-tiles .tile .t-name{ font-size:17px; font-weight:700; margin-bottom:6px; }
+  .category-tiles .tile .t-desc{ font-size:13.5px; color:var(--text-muted); line-height:1.5; }
+
+  @media (max-width: 720px){
+    .heritage-module{ grid-template-columns:1fr; }
+    .category-tiles{ grid-template-columns:1fr; }
+  }
+  @media (max-width: 480px){
+    .category-tiles{ grid-template-columns:1fr; padding-left:20px; padding-right:20px; }
+    .home-hero, .heritage-module{ padding-left:20px; padding-right:20px; }
+  }
+
+  /* ================= SHOP VIEW ================= */
+  .shop-wrap{ max-width:1200px; margin:0 auto; }
+  .shop-hero{
+    padding:64px 40px 40px;
+    border-bottom:1px solid var(--border);
+  }
+  .shop-hero h1{ max-width:720px; line-height:1.2; margin-bottom:22px; }
+  .filters{
+    display:flex; gap:10px; margin-bottom:var(--sp-24); flex-wrap:wrap;
+  }
+  .filters button{
+    font-size:13.5px; font-weight:600;
+    min-height:44px;
+    padding:10px 20px;
+    border:1px solid rgba(255,255,255,.4);
+    border-radius:var(--r-sm);
+    background:none;
+    color:var(--text-muted);
+    cursor:pointer;
+    transition:background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  }
+  .filters button:hover{ border-color:var(--text); color:var(--text); }
+  .filters button.on{ background:var(--primary); border-color:var(--primary); color:var(--on-primary); }
+  .filters button.heritage-filter.on{ background:var(--primary); border-color:var(--primary); color:var(--on-primary); }
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:var(--sp-16);
+    padding:var(--sp-24) 40px 72px;
+  }
+  .card{
+    background:var(--surface-raised);
+    border:1px solid var(--border);
+    border-radius:var(--r-sm);
+    padding:var(--sp-20);
+    cursor:pointer;
+    transition:border-color var(--dur-fast) var(--ease);
+  }
+  .card:hover{ border-color:var(--accent); }
+  .card .thumb{
+    width:100%; height:180px;
+    background:linear-gradient(135deg, #0e0e0e, #1a2530);
+    border:1px solid var(--border);
+    border-radius:var(--r-sm);
+    margin-bottom:16px;
+    position:relative;
+    display:flex; align-items:flex-end; justify-content:flex-start;
+  }
+  .card .thumb-label{
+    font-size:11px; color:var(--text-faint); padding:10px;
+  }
+  .card .h-badge{
+    position:absolute; top:10px; right:10px;
+    font-size:10px; font-weight:700; letter-spacing:.05em;
+    background:var(--primary); color:var(--on-primary);
+    border-radius:var(--r-sm);
+    padding:4px 9px;
+  }
+  .card .type{ font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--text-faint); margin-bottom:6px; }
+  .card .name{ font-size:15px; font-weight:600; margin-bottom:4px; }
+  .card .price{ font-size:14px; color:var(--text-muted); }
+
+  /* ================= PRODUCT VIEW ================= */
+  .product-wrap{
+    max-width:1200px; margin:0 auto; padding:56px 40px 100px;
+    display:grid; grid-template-columns: 1.1fr 1fr; gap:56px;
+  }
+  .product-image{
+    background:linear-gradient(135deg, #0e0e0e, #1a2530);
+    border:1px solid var(--border);
+    border-radius:var(--r-sm);
+    height:520px;
+    display:flex; align-items:flex-end; padding:16px;
+  }
+  .product-image span{ font-size:12px; color:var(--text-faint); }
+  .product-info .eyebrow{
+    font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--text-faint); margin-bottom:10px; display:flex; align-items:center; gap:8px;
+  }
+  .product-info h1{ margin-bottom:10px; }
+  .product-info .price{ font-size:17px; font-weight:600; margin-bottom:26px; }
+  .buy-row{ display:flex; gap:12px; margin-bottom:30px; }
+  .buy-row button{
+    font-size:14.5px; font-weight:700;
+    min-height:48px;
+    padding:14px 28px;
+    background:var(--primary); color:var(--on-primary);
+    border:none; border-radius:var(--r-sm);
+    cursor:pointer;
+    transition:background var(--dur-fast) var(--ease);
+  }
+  .buy-row button:hover{ background:var(--accent); }
+  .buy-row .stock{ font-size:13.5px; color:var(--text-muted); align-self:center; }
+
+  .spec{ font-size:14px; color:var(--text-muted); line-height:1.9; border-top:1px solid var(--border); padding-top:18px; margin-bottom:var(--sp-24); }
+  .spec strong{ color:var(--text); font-weight:700; }
+
+  .story-block{ border-top:1px solid var(--border); padding-top:18px; }
+  .story-teaser{
+    font-size:15px;
+    font-weight:600;
+    color:var(--text);
+    cursor:pointer;
+    display:flex; align-items:center; gap:8px;
+    transition:color var(--dur-fast) var(--ease);
+  }
+  .story-teaser:hover{ color:var(--accent); }
+  .story-teaser .chevron{ transition:transform var(--dur-fast) var(--ease); font-size:12px; color:var(--accent); }
+  .story-teaser.open .chevron{ transform:rotate(90deg); }
+  .story-full{
+    max-height:0;
+    overflow:hidden;
+    transition:max-height var(--dur-base) var(--ease);
+  }
+  .story-full.open{ max-height:320px; margin-top:14px; }
+  .story-full p{ font-size:14px; line-height:1.7; color:var(--text-muted); max-width:520px; }
+  .story-full .story-meta{ font-size:12.5px; color:var(--text-faint); margin-top:10px; }
+
+  /* ================= EDITIONS VIEW ================= */
+  .editions-hero{
+    padding:64px 40px 34px;
+    border-bottom:1px solid var(--border);
+  }
+  .editions-hero h1{ max-width:720px; line-height:1.2; margin-bottom:10px; }
+  .editions-hero .sub{ font-size:14.5px; color:var(--text-muted); max-width:600px; line-height:1.6; }
+
+  .state-tabs{ display:flex; gap:0; margin-top:26px; border-bottom:1px solid var(--border); width:fit-content; }
+  .state-tabs button{
+    font-size:14px; font-weight:700;
+    min-height:48px;
+    padding:12px 22px;
+    background:none; border:none;
+    color:var(--text-muted);
+    cursor:pointer;
+    position:relative;
+    transition:color var(--dur-fast) var(--ease);
+  }
+  .state-tabs button:hover{ color:var(--text); }
+  .state-tabs button.on{ color:var(--text); }
+  .state-tabs button.on::after{
+    content:''; position:absolute; left:0; right:0; bottom:-1px; height:3px; background:var(--accent);
+  }
+  .state-tabs .count{ font-size:12px; color:var(--text-faint); margin-left:6px; font-weight:400; }
+
+  .ed-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:var(--sp-16);
+    padding:var(--sp-24) 40px 72px;
+  }
+  .ed-card{
+    background:var(--surface-raised);
+    border:1px solid var(--border);
+    border-radius:var(--r-sm);
+    padding:var(--sp-20);
+    position:relative;
+    transition:border-color var(--dur-fast) var(--ease);
+  }
+  .ed-card:hover{ border-color:var(--accent); }
+  .ed-card.dimmed .thumb{ filter:grayscale(60%); opacity:.55; }
+  .ed-card .thumb{
+    width:100%; height:180px;
+    background:linear-gradient(135deg, #0e0e0e, #1a2530);
+    border:1px solid var(--border);
+    border-radius:var(--r-sm);
+    margin-bottom:16px;
+    position:relative;
+    display:flex; align-items:flex-end; justify-content:flex-start;
+  }
+  .ed-card .thumb-label{ font-size:11px; color:var(--text-faint); padding:10px; }
+  .status-pill{
+    position:absolute; top:10px; left:10px;
+    font-size:10px; font-weight:700; letter-spacing:.05em;
+    padding:4px 9px;
+    border-radius:var(--r-sm);
+  }
+  .status-pill.live{ background:var(--primary); color:var(--on-primary); }
+  .status-pill.soldout{ background:var(--text); color:var(--surface); }
+  .status-pill.archived{ background:none; color:var(--text-muted); border:1px solid rgba(255,255,255,.4); }
+
+  .ed-card .type{ font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--text-faint); margin-bottom:6px; }
+  .ed-card .name{ font-size:15px; font-weight:600; margin-bottom:4px; }
+  .ed-card .price{ font-size:14px; color:var(--text-muted); margin-bottom:14px; }
+  .ed-card .price.struck{ text-decoration:line-through; color:var(--text-faint); }
+  .ed-card .price .sold-at{ text-decoration:none; margin-left:8px; font-size:12px; color:var(--text-faint); }
+
+  .ed-card .cta{
+    width:100%;
+    font-size:13px; font-weight:700;
+    min-height:44px;
+    padding:12px 0;
+    border-radius:var(--r-sm);
+    border:none;
+    cursor:pointer;
+    transition:background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  }
+  .ed-card .cta.buy{ background:var(--primary); color:var(--on-primary); }
+  .ed-card .cta.buy:hover{ background:var(--accent); }
+  .ed-card .cta.notify{ background:none; border:1px solid rgba(255,255,255,.4); color:var(--text-muted); }
+  .ed-card .cta.notify:hover{ border-color:var(--text); color:var(--text); }
+  .ed-card .stock-note{ font-size:12px; font-weight:700; color:var(--accent); margin-bottom:10px; }
+  .ed-card .kickstarter{ font-size:12px; color:var(--text-muted); margin-bottom:10px; }
+  .ed-card .kickstarter a{ color:var(--accent); font-weight:600; }
+
+  @media (max-width: 720px){
+    .product-wrap{ grid-template-columns:1fr; }
+    .grid{ grid-template-columns:1fr 1fr; padding-left:20px; padding-right:20px; }
+    .ed-grid{ grid-template-columns:1fr 1fr; padding-left:20px; padding-right:20px; }
+    .tier{ grid-template-columns:1fr; }
+    .branch{ grid-template-columns:1fr; }
+    .nav{ padding-left:20px; padding-right:20px; }
+    .nav .links{ gap:18px; font-size:12px; }
+    .home-hero{ padding-top:72px; }
+  }
+  @media (max-width: 480px){
+    .grid{ grid-template-columns:1fr; }
+    .ed-grid{ grid-template-columns:1fr; }
+    .shop-hero, .editions-hero{ padding-left:20px; padding-right:20px; }
+  }
+
+  /* Prototype v2 additions: Studio and Trade surfaces */
+  .studio-hero,.trade-hero{padding:64px 40px 48px;border-bottom:1px solid var(--border)}
+  .studio-hero p,.trade-hero p{max-width:620px;color:var(--text-muted);font-size:15px}
+  .studio-wrap,.trade-wrap{max-width:1200px;margin:0 auto}
+  .story-feature{display:grid;grid-template-columns:1.1fr 1fr;gap:48px;align-items:center;padding:64px 40px;border-bottom:1px solid var(--border)}
+  .story-feature .image{height:340px;border-radius:var(--r-sm);border:1px solid var(--border);background:linear-gradient(135deg,#0e0e0e,#1a2530);display:flex;align-items:flex-end;padding:16px;color:var(--text-faint);font-size:12px}
+  .story-feature p{max-width:500px;color:var(--text-muted);margin:16px 0 24px}
+  .article-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:16px;padding:36px 40px 72px}
+  .article-card{background:var(--surface-raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:20px;min-height:220px;transition:border-color var(--dur-fast) var(--ease)}
+  .article-card:hover{border-color:var(--accent)}
+  .article-card .image{height:120px;border-radius:var(--r-sm);border:1px dashed rgba(255,255,255,.3);background:linear-gradient(135deg,#111,#182737);margin-bottom:18px}
+  .article-card:first-child .image{height:200px}
+  .article-card p{font-size:13px;color:var(--text-muted);margin-top:8px}
+  .trade-grid-v2{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:48px 40px 24px}
+  .trade-card{background:var(--surface-raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:24px}
+  .trade-card p{color:var(--text-muted);font-size:14px;margin:12px 0 20px}
+  .trade-form{max-width:760px;margin:0 40px 72px;padding:24px;background:var(--surface-raised);border:1px solid var(--border);border-radius:var(--r-sm)}
+  .trade-form label{display:block;font-size:13px;font-weight:600;margin-bottom:16px}
+  .trade-form input,.trade-form textarea{display:block;width:100%;margin-top:7px;background:#080808;color:var(--text);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;font:inherit}
+  .filter-btn[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+  @media(max-width:720px){.story-feature{grid-template-columns:1fr;padding-left:20px;padding-right:20px}.article-grid{grid-template-columns:1fr;padding-left:20px;padding-right:20px}.trade-grid-v2{grid-template-columns:1fr;padding-left:20px;padding-right:20px}.trade-form{margin-left:20px;margin-right:20px}.studio-hero,.trade-hero{padding-left:20px;padding-right:20px}}
+</style>
+</head>
+<body>
+
+<div class="tabbar">
+  <button class="active" data-tab="home">Home</button>
+  <button data-tab="shop">Shop The Collection</button>
+  <button data-tab="product">Product PDP</button>
+  <button data-tab="editions">Editions</button>
+  <button data-tab="studio">The Studio</button>
+  <button data-tab="trade">Trade / Wholesale</button>
+</div>
+
+<!-- ============ ARCHITECTURE VIEW ============ -->
+<div class="view" id="view-arch">
+  <div class="arch-wrap">
+    <div class="intro">
+      <h1>Site Architecture</h1>
+      <p>Four pillars in the top-level structure. Heritage is not a fifth pillar: it is a cross-cutting collection tag that lives inside The Collection's product taxonomy, and a storytelling strand inside The Studio. This keeps the nav restrained while letting one product carry both an object-type and a narrative.</p>
+    </div>
+
+    <div class="tree">
+      <div class="tier">
+        <div class="num">01</div>
+        <div>
+          <div class="label">Home <span class="badge-tag">SEE PROTOTYPE TAB</span></div>
+          <div class="sub">Visual storytelling entry point. One module links out to the Heritage story; category tiles route into The Collection; product grid is not shown here.</div>
+        </div>
+      </div>
+
+      <div class="tier">
+        <div class="num">02</div>
+        <div>
+          <div class="label">Shop The Collection</div>
+          <div class="sub">Permanent, always-on inventory. Organised by object-type, not by story.</div>
+          <div class="branches">
+            <div class="branch"><div class="name">Objects</div><div class="desc">Stationery, ceramics, small desk items. Commodity + Heritage pieces sit in the same grid, same card size.</div></div>
+            <div class="branch"><div class="name">Wearables</div><div class="desc">Jackets, clothing. Filterable by Heritage tag alongside standard sort options.</div></div>
+            <div class="branch"><div class="name">Space</div><div class="desc">Furniture. Same rule: Heritage is a badge, not a separate shelf.</div></div>
+            <div class="branch heritage"><div class="name">Filter: Heritage <span class="badge-tag">TAG, NOT A PAGE</span></div><div class="desc">A pill filter across all three types: surfaces every purchasable Heritage piece without giving it its own top-level destination.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tier">
+        <div class="num">03</div>
+        <div>
+          <div class="label">Editions / Drops</div>
+          <div class="sub">Limited-run, high-urgency releases. Separate release logic from The Collection. Sold-out items move to Archive rather than being deleted. Links out to active Kickstarter campaigns.</div>
+        </div>
+      </div>
+
+      <div class="tier">
+        <div class="num">04</div>
+        <div>
+          <div class="label">The Studio</div>
+          <div class="sub">Portfolio/blog hybrid: prototyping, CAD, manufacturer visits, and the long-form Heritage narrative.</div>
+          <div class="branches">
+            <div class="branch heritage"><div class="name">Heritage, Purpose, Function <span class="badge-tag">STORY HOME</span></div><div class="desc">The long-form personal narrative lives here: upbringing, philosophy, the "why" behind specific pieces. Each entry deep-links to the purchasable product page, driving traffic into the shop rather than dead-ending as a blog.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tier">
+        <div class="num">05</div>
+        <div>
+          <div class="label">Trade / Wholesale <span class="badge-tag" style="border-color:rgba(255,255,255,.35); color:var(--text-faint);">FOOTER ONLY</span></div>
+          <div class="sub">Not in top nav. Footer link only: line sheets, MOQs, B2B portal login for buyers.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footnote">
+      <strong>Why Heritage isn't a top-level tab:</strong> Objects / Wearables / Space answer "what is it," Heritage answers "why does it exist." Making Heritage a peer category forces every product into an either/or decision it doesn't need to make. As a tag + a Studio story instead, a product can be an Object <em>and</em> a Heritage piece: badge on the card, collapsible story on the product page, full narrative in The Studio.
+    </div>
+  </div>
+</div>
+
+<!-- ============ HOME VIEW ============ -->
+<div class="view active" id="view-home">
+  <div class="nav">
+    <div class="logo">Northfield</div>
+    <div class="links">
+      <a href="#">Shop The Collection</a>
+      <a href="#">Editions</a>
+      <a href="#">The Studio</a>
+      <a href="#">Cart (0)</a>
+    </div>
+  </div>
+
+  <div class="home-hero">
+    <div class="inner">
+      <div class="eyebrow">Northfield Studio</div>
+      <h1>Objects, wearables, and furniture, made to be used, not shelved.</h1>
+      <p>A small studio working with UK manufacturing partners. Some pieces are new. Some are reproduced from things that already mattered to someone.</p>
+      <div class="home-image"><span>Hero photography: workshop or lifestyle shot, rotating</span></div>
+    </div>
+  </div>
+
+  <div class="heritage-module">
+    <div class="h-image"><span>Photograph: the original object or its maker</span></div>
+    <div class="h-copy">
+      <div class="eyebrow">Heritage, Purpose, Function</div>
+      <h2>Some pieces started in someone else's house, long before they had a product page.</h2>
+      <p>The Front Room Stool, the Migration Jacket: one strand of the studio's work is reproducing things worth keeping. The stories live in The Studio; the pieces themselves are for sale.</p>
+      <a href="#">Read the story →</a>
+    </div>
+  </div>
+
+  <div class="category-tiles">
+    <div class="tile">
+      <div class="t-image"></div>
+      <div class="t-name">Objects</div>
+      <div class="t-desc">Stationery, ceramics, small desk items.</div>
+    </div>
+    <div class="tile">
+      <div class="t-image"></div>
+      <div class="t-name">Wearables</div>
+      <div class="t-desc">Jackets, knitwear, outerwear.</div>
+    </div>
+    <div class="tile">
+      <div class="t-image"></div>
+      <div class="t-name">Space</div>
+      <div class="t-desc">Furniture and fixtures for the home.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div>© Northfield Studio</div>
+    <div><a href="#">Trade &amp; Wholesale</a></div>
+  </div>
+</div>
+
+<!-- ============ SHOP VIEW ============ -->
+<div class="view" id="view-shop">
+  <div class="nav">
+    <div class="logo">Northfield</div>
+    <div class="links">
+      <a href="#" class="current">Shop The Collection</a>
+      <a href="#">Editions</a>
+      <a href="#">The Studio</a>
+      <a href="#">Cart (0)</a>
+    </div>
+  </div>
+  <div class="shop-wrap">
+    <div class="shop-hero">
+      <h1>Objects, wearables, and furniture made with UK manufacturing partners.</h1>
+      <div class="filters">
+        <button class="on filter-btn" data-filter="All" aria-pressed="true">All</button>
+        <button class="filter-btn" data-filter="Objects" aria-pressed="false">Objects</button>
+        <button class="filter-btn" data-filter="Wearables" aria-pressed="false">Wearables</button>
+        <button class="filter-btn" data-filter="Space" aria-pressed="false">Space</button>
+        <button class="heritage-filter filter-btn" data-filter="Heritage" aria-pressed="false">Heritage</button>
+      </div>
+    </div>
+    <div class="grid" id="shop-grid">
+      <!-- cards injected by JS -->
+    </div>
+  </div>
+  <div class="footer">
+    <div>© Northfield Studio</div>
+    <div><a href="#">Trade &amp; Wholesale</a></div>
+  </div>
+</div>
+
+<!-- ============ EDITIONS VIEW ============ -->
+<div class="view" id="view-editions">
+  <div class="nav">
+    <div class="logo">Northfield</div>
+    <div class="links">
+      <a href="#">Shop The Collection</a>
+      <a href="#" class="current">Editions</a>
+      <a href="#">The Studio</a>
+      <a href="#">Cart (0)</a>
+    </div>
+  </div>
+  <div class="shop-wrap">
+    <div class="editions-hero">
+      <h1>Limited runs. One-off pieces. Gone when they're gone.</h1>
+      <div class="sub">Every Edition stays visible after it sells, nothing gets deleted. Sold-out and archived pieces show what they went for, so you know what to move on next time.</div>
+      <div class="state-tabs" id="state-tabs">
+        <button class="on" data-state="live">Live Drops <span class="count" id="count-live"></span></button>
+        <button data-state="archive">Archive <span class="count" id="count-archive"></span></button>
+      </div>
+    </div>
+    <div class="ed-grid" id="editions-grid"><!-- injected by JS --></div>
+  </div>
+  <div class="footer">
+    <div>© Northfield Studio</div>
+    <div><a href="#">Trade &amp; Wholesale</a></div>
+  </div>
+</div>
+
+<!-- ============ PRODUCT VIEW ============ -->
+<div class="view" id="view-product">
+  <div class="nav">
+    <div class="logo">Northfield</div>
+    <div class="links">
+      <a href="#">Shop The Collection</a>
+      <a href="#">Editions</a>
+      <a href="#">The Studio</a>
+      <a href="#">Cart (0)</a>
+    </div>
+  </div>
+  <div class="product-wrap">
+    <div class="product-image"><span>Product photography: front room stool, oak</span></div>
+    <div class="product-info">
+      <div class="eyebrow">Space <span class="badge-tag">Heritage</span></div>
+      <h1>The Front Room Stool</h1>
+      <div class="price">£410</div>
+      <div class="buy-row">
+        <button>Add to cart</button>
+        <div class="stock">3 in stock, made to order</div>
+      </div>
+      <div class="spec">
+        <strong>Material</strong> Solid oak, hand-finished with tung oil<br>
+        <strong>Dimensions</strong> 42cm H × 34cm diameter<br>
+        <strong>Made in</strong> Herefordshire, UK
+      </div>
+      <div class="story-block">
+        <div class="story-teaser" id="story-toggle">
+          <span class="chevron">›</span>
+          <span>Reproduced from a stool that sat by my nan's fire. Click to read.</span>
+        </div>
+        <div class="story-full" id="story-full">
+          <p>Growing up, this stool lived by the hearth in my grandmother's front room, the seat you were given if you were the last one to arrive. When I started working with the joiner in Herefordshire, I brought in a photo and we rebuilt it from memory and measurement, keeping the slightly uneven turn on the legs rather than machining it smooth.</p>
+          <div class="story-meta">Part of the Heritage, Purpose, Function collection. Read the full story in The Studio →</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">
+    <div>© Northfield Studio</div>
+    <div><a href="#">Trade &amp; Wholesale</a></div>
+  </div>
+</div>
+
+
+<!-- ============ STUDIO VIEW ============ -->
+<div class="view" id="view-studio">
+  <div class="nav"><div class="logo">Northfield</div><div class="links"><a href="#" data-tab="shop">Shop The Collection</a><a href="#" data-tab="editions">Editions</a><a href="#" class="current">The Studio</a><a href="#">Cart (0)</a></div></div>
+  <div class="studio-wrap">
+    <div class="studio-hero"><div class="eyebrow">The Studio</div><h1>Making, material, and the stories behind useful things.</h1><p>Prototyping, manufacturer visits, and the long-form Heritage narrative.</p></div>
+    <div class="story-feature"><div class="image">Featured story image, original stool and maker</div><div><div class="eyebrow">Heritage, Purpose, Function</div><h2>Some pieces started in someone else's house, long before they had a product page.</h2><p>The story behind The Front Room Stool and the objects worth keeping.</p><a class="buy-row button" href="#" data-tab="product">Read the story</a></div></div>
+    <div class="article-grid"><article class="article-card"><div class="image"></div><div class="type">Making notes</div><h2>The joiner in Herefordshire</h2><p>Workshop notes and material decisions.</p></article><article class="article-card"><div class="image"></div><div class="type">Field notes</div><h2>Why small runs matter</h2><p>On making only what can be used.</p></article><article class="article-card"><div class="image"></div><div class="type">Heritage</div><h2>The object that stayed</h2><p>Stories attached to useful things.</p></article></div>
+  </div>
+  <div class="footer"><div>© Northfield Studio</div><div><a href="#" data-tab="trade">Trade &amp; Wholesale</a></div></div>
+</div>
+
+<!-- ============ TRADE VIEW ============ -->
+<div class="view" id="view-trade">
+  <div class="nav"><div class="logo">Northfield</div><div class="links"><a href="#" data-tab="shop">Shop The Collection</a><a href="#" data-tab="editions">Editions</a><a href="#" data-tab="studio">The Studio</a><a href="#">Cart (0)</a></div></div>
+  <div class="trade-wrap">
+    <div class="trade-hero"><div class="eyebrow">Trade and Wholesale</div><h1>Specify Northfield for considered spaces.</h1><p>Line sheets, minimum order information, and a direct enquiry route for interior specifiers and retailers.</p></div>
+    <div class="trade-grid-v2"><div class="trade-card"><h2>Line sheet</h2><p>Download the latest collection, pricing, and product dimensions.</p><a class="buy-row button" href="#">Download line sheet</a></div><div class="trade-card"><h2>Minimum order quantities</h2><p>MOQ information is maintained in the Shopify custom.moq field for the current trade catalogue.</p><strong>MOQ: 12 units per product</strong></div></div>
+    <form class="trade-form"><h2>Trade enquiry</h2><p>Tell us what you are sourcing and we will route the enquiry to the studio.</p><label>Name<input required name="name" autocomplete="name"></label><label>Email<input required type="email" name="email" autocomplete="email"></label><label>Enquiry<textarea required name="enquiry" rows="4"></textarea></label><button class="buy-row button" type="submit">Submit enquiry</button></form>
+  </div>
+  <div class="footer"><div>© Northfield Studio</div><div>Trade and Wholesale stays footer-only in the main navigation.</div></div>
+</div>
+
+<script>
+  // Tab switching
+  const tabs = document.querySelectorAll('[data-tab]');
+  const views = { home: document.getElementById('view-home'), shop: document.getElementById('view-shop'), product: document.getElementById('view-product'), editions: document.getElementById('view-editions'), studio: document.getElementById('view-studio'), trade: document.getElementById('view-trade') };
+  tabs.forEach(btn=>{
+    btn.addEventListener('click', (event)=>{
+      event.preventDefault();
+      const name = btn.dataset.tab;
+      document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.tab === name));
+      Object.values(views).forEach(v=>v.classList.remove('active'));
+      if (views[name]) { views[name].classList.add('active'); window.scrollTo(0,0); }
+    });
+  });
+
+  // Story accordion
+  const storyToggle = document.getElementById('story-toggle');
+  const storyFull = document.getElementById('story-full');
+  storyToggle.addEventListener('click', ()=>{
+    storyToggle.classList.toggle('open');
+    storyFull.classList.toggle('open');
+  });
+
+  // Shop grid data: mixed commodity + heritage, same visual weight
+  const products = [
+    { type:'Objects', name:'Brass Desk Pen', price:'£28', heritage:false, note:'stationery' },
+    { type:'Objects', name:'Ceramic Paperweight', price:'£34', heritage:false, note:'desk item' },
+    { type:'Objects', name:'The Toolbox Tray', price:'£58', heritage:true, note:'reclaimed oak' },
+    { type:'Wearables', name:'Waxed Cotton Work Jacket', price:'£185', heritage:false, note:'outerwear' },
+    { type:'Wearables', name:'Wool Beanie', price:'£28', heritage:false, note:'knitwear' },
+    { type:'Wearables', name:'The Migration Jacket', price:'£240', heritage:true, note:'tailoring archive' },
+    { type:'Space', name:'Oak Side Table', price:'£320', heritage:false, note:'furniture' },
+    { type:'Space', name:'Steel Shelf Bracket Set', price:'£65', heritage:false, note:'fixtures' },
+    { type:'Space', name:'The Front Room Stool', price:'£410', heritage:true, note:'front room, 1994' },
+  ];
+  const grid = document.getElementById('shop-grid');
+  products.forEach(p=>{
+    const card = document.createElement('div');
+    card.className='card';
+    card.dataset.type = p.type;
+    card.dataset.heritage = p.heritage ? 'true' : 'false';
+    card.innerHTML = `
+      <div class="thumb">
+        ${p.heritage ? '<div class="h-badge">Heritage</div>' : ''}
+        <div class="thumb-label">${p.note}</div>
+      </div>
+      <div class="type">${p.type}</div>
+      <div class="name">${p.name}</div>
+      <div class="price">${p.price}</div>
+    `;
+    grid.appendChild(card);
+  });
+
+
+  // Collection filters are presentational in the wireframe; active here for the prototype.
+  document.querySelectorAll('.filter-btn').forEach(btn => btn.addEventListener('click', () => {
+    const filter = btn.dataset.filter;
+    document.querySelectorAll('.filter-btn').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+    document.querySelectorAll('#shop-grid .card').forEach(card => {
+      card.hidden = filter !== 'All' && (filter === 'Heritage' ? card.dataset.heritage !== 'true' : card.dataset.type !== filter);
+    });
+  }));
+
+  // Editions data: status 'live' | 'soldout' | 'archived'
+  const editions = [
+    { name:'The Migration Jacket × [Partner Brand]', type:'Wearables / Collab', status:'live', price:'£240', note:'run of 40, numbered', stock:'11 left of 40', kickstarter:false },
+    { name:'Oxide Ceramic Cup, Run 03', type:'Objects', status:'live', price:'£36', note:'glaze test batch', stock:'6 left of 25', kickstarter:false },
+    { name:'Field Stool Kickstarter', type:'Space', status:'live', price:'from £180', note:'campaign live', stock:null, kickstarter:true },
+    { name:'The Migration Jacket, Run 01', type:'Wearables / Collab', status:'soldout', price:'£220', note:'sold out in 6 days', stock:null, kickstarter:false },
+    { name:'Waxed Satchel, Edition 02', type:'Wearables', status:'soldout', price:'£165', note:'sold out', stock:null, kickstarter:false },
+    { name:'Brass Pen, Winter Finish', type:'Objects', status:'archived', price:'£32', note:'sold out, Dec drop', stock:null, kickstarter:false },
+    { name:'Prototype Console Table', type:'Space', status:'archived', price:'£480', note:'one-off, sold out', stock:null, kickstarter:false },
+    { name:'Copper Cuff, Test Run', type:'Wearables', status:'archived', price:'£58', note:'sold out, proof piece', stock:null, kickstarter:false },
+  ];
+
+  const edGrid = document.getElementById('editions-grid');
+  const stateTabs = document.getElementById('state-tabs');
+  let currentState = 'live';
+
+  function renderEditions(){
+    edGrid.innerHTML = '';
+    const items = editions.filter(p => currentState === 'live' ? p.status === 'live' : (p.status === 'soldout' || p.status === 'archived'));
+    items.forEach(p=>{
+      const dimmed = p.status !== 'live';
+      const card = document.createElement('div');
+      card.className = 'ed-card' + (dimmed ? ' dimmed' : '');
+      const pillClass = p.status === 'live' ? 'live' : (p.status === 'soldout' ? 'soldout' : 'archived');
+      const pillText = p.status === 'live' ? 'Live' : (p.status === 'soldout' ? 'Sold Out' : 'Archived');
+      const ctaHtml = p.status === 'live'
+        ? `<button class="cta buy">${p.kickstarter ? 'View Campaign' : 'Add to cart'}</button>`
+        : `<button class="cta notify">Notify me next run</button>`;
+      card.innerHTML = `
+        <div class="thumb">
+          <div class="status-pill ${pillClass}">${pillText}</div>
+          <div class="thumb-label">${p.note}</div>
+        </div>
+        <div class="type">${p.type}</div>
+        <div class="name">${p.name}</div>
+        <div class="price ${dimmed ? 'struck' : ''}">${p.price}${dimmed ? '<span class="sold-at">sold at this price</span>' : ''}</div>
+        ${p.stock ? `<div class="stock-note">${p.stock}</div>` : ''}
+        ${p.kickstarter ? `<div class="kickstarter">Backed on <a href="#">Kickstarter →</a></div>` : ''}
+        ${ctaHtml}
+      `;
+      edGrid.appendChild(card);
+    });
+    document.getElementById('count-live').textContent = '(' + editions.filter(p=>p.status==='live').length + ')';
+    document.getElementById('count-archive').textContent = '(' + editions.filter(p=>p.status!=='live').length + ')';
+  }
+
+  stateTabs.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      stateTabs.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+      btn.classList.add('on');
+      currentState = btn.dataset.state;
+      renderEditions();
+    });
+  });
+
+  renderEditions();
+</script>
+
+</body>
+</html>
